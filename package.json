@@ -1,0 +1,20 @@
+{
+  "name": "telegram-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot using Telegraf.js with modular architecture",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "telegraf"
+  ],
+  "author": "Manus",
+  "license": "ISC",
+  "dependencies": {
+    "telegraf": "^4.16.0"
+  }
+}
+
