@@ -11,8 +11,8 @@
     "bot",
     "telegraf"
   ],
-  "author": "Manus",
-  "license": "ISC",
+  "author": "FlowFalcon",
+  "license": "MIT",
   "dependencies": {
     "telegraf": "^4.16.0"
   }
