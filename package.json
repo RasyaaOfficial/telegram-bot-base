@@ -1,6 +1,6 @@
 {
-  "name": "telegram-bot",
-  "version": "1.0.0",
+  "name": "telegram-bot-base",
+  "version": "1.1.0",
   "description": "Telegram bot using Telegraf.js with modular architecture",
   "main": "bot.js",
   "scripts": {
@@ -14,7 +14,8 @@
   "author": "FlowFalcon",
   "license": "MIT",
   "dependencies": {
+    "archiver": "^7.0.1",
     "telegraf": "^4.16.0"
-  }
+  },
+  "devDependencies": {}
 }
-

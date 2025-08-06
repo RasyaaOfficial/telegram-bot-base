@@ -1,5 +1,4 @@
 module.exports = {
-    botToken: 'YOUR_BOT_TOKEN_HERE',
-    ownerId:  null // Ganti dengan ID Telegram owner bot
+    botToken: '8223209229:AAGmj7Z6-dABECfLUio4WGeSHBtCE56epeY',
+    ownerId:  8178144473 // Ganti dengan ID Telegram owner bot
 };
-

@@ -6,40 +6,48 @@ Bot Telegram ini dibangun menggunakan Telegraf.js dengan arsitektur modular, mem
 
 ```
 telegram-bot-base/
-├── commands/             # Berisi semua command bot. Setiap command adalah file JS terpisah.
+├── commands/             # Setiap command dalam 1 file, bisa dalam subfolder
 │   ├── start.js
 │   ├── ban.js
-│   └── ... (command lainnya)
-├── data/                 # Penyimpanan data lokal dalam format JSON.
-│   ├── botinfo.json      # Informasi dasar bot (nama, owner, thumbnail).
-│   ├── owners.json       # Daftar ID user yang memiliki akses owner.
-│   ├── premiums.json     # Daftar ID user yang memiliki akses premium.
-│   └── warns.json        # Data warn user di setiap grup.
-├── middlewares/          # Fungsi middleware untuk validasi atau pre-processing request.
-│   ├── groupOnly.js      # Memastikan command hanya berjalan di grup.
-│   ├── ownerOnly.js      # Memastikan command hanya berjalan untuk owner.
-│   └── premiumOnly.js    # Memastikan command hanya berjalan untuk user premium/owner.
-├── utils/                # Fungsi-fungsi bantu yang digunakan di berbagai bagian bot.
-│   └── logger.js         # Modul untuk logging aktivitas bot.
-├── bot.js                # File utama yang menginisialisasi bot, memuat command, dan mengatur middleware global.
-├── config.js             # Konfigurasi penting bot seperti token dan ID owner utama.
-├── package.json          # Metadata project dan daftar dependensi Node.js.
-└── README.md             # Instruksi instalasi dan penggunaan dasar.
+│   ├── tebak.js
+│   ├── addowner.js
+│   ├── delowner.js
+│   ├── addprem.js
+│   ├── delprem.js
+│   ├── setnamebot.js
+│   ├── setownername.js
+│   ├── setthumb.js
+│   └── cekid.js
+     (....) # dan file lainnya
+├── data/                 # File JSON lokal untuk penyimpanan data
+│   ├── botinfo.json
+│   ├── owners.json
+│   ├── premiums.json
+│   └── warns.json
+├── middlewares/          # Middleware untuk validasi (groupOnly, ownerOnly, premiumOnly)
+│   ├── groupOnly.js
+│   ├── ownerOnly.js
+│   └── premiumOnly.js
+├── utils/                # Fungsi bantu seperti logger
+│   └── logger.js
+├── bot.js                # File utama bot
+├── config.js             # Konfigurasi bot (token, owner ID)
+├── package.json          # Informasi project dan dependensi
+└── README.md             # Dokumentasi ini
 ```
 
 ## Instalasi
 
 1.  **Clone repository ini:**
     ```bash
-    git clone https://github.com/FlowFalcon/telegram-bot-base
-    cd telegram-bot-base
+   git clone https://github.com/FlowFalcon/telegram-bot-base
+   cd telegram-bot-base
     ```
 
 2.  **Instal dependensi:**
     ```bash
     npm install
     ```
-*rekomendasi menggunakan nodejs versi 20 keatas*
 
 ## Konfigurasi
 
@@ -62,7 +70,7 @@ Edit juga file `data/botinfo.js` untuk konfigurasi tampilan menu saat start nant
   "botName": "FlowFalcon TeleBot Project's",
   "ownerName": "@FlowFalcon",
   "thumbnail": "AgACAgUAAxkBAAMGaI4O9KPTvmFU1TAkw4i2_cygOl8AAjnEMRtQd3FUZkMJdM9MUnwBAAMCAAN4AAM2BA"
-      // ganti thumbnail bisa di atur di bot nanti menggunakan fitur /setthumbnail sambil reply media
+    // ganti thumbnail bisa di atur di bot nanti menggunakan fitur /setthumbnail sambil reply media
 }
 ```
 
@@ -74,24 +82,279 @@ npm start
 node bot.js
 ```
 
+## Fungsi Utama Bot
+
+Berikut adalah ringkasan fungsionalitas utama yang disediakan oleh bot ini:
+
+*   **Modular Command Handling:** Command dimuat secara dinamis dari folder `commands/`, memungkinkan penambahan dan pengelolaan command yang mudah. Setiap command dapat mendaftarkan handler-nya sendiri (command, action, text).
+*   **Middleware System:** Penggunaan middleware untuk validasi akses (grup, owner, premium) sebelum command dieksekusi.
+*   **Anti-Link:** Otomatis menghapus pesan yang mengandung link dari user non-admin di grup.
+*   **Sistem Warn:** Menerapkan sistem warn (maksimal 3 warn sebelum user di-kick) untuk pelanggaran seperti pengiriman link.
+*   **Manajemen Data Lokal:** Menggunakan file JSON (`data/`) untuk menyimpan konfigurasi bot yang dinamis (nama bot, owner, thumbnail) serta daftar owner, premium, dan data warn.
+*   **Logging:** Mencatat aktivitas bot, termasuk setiap command yang dijalankan, ke konsol dan file log harian di folder `logs/`.
+
+## Penjelasan Isi File dan Potongan Kode Penting
+
+### `bot.js`
+
+File inti yang mengorkestrasi seluruh bot. Ini adalah tempat bot diinisialisasi, command dimuat, dan middleware global diterapkan.
+
+**Potongan Kode: Inisialisasi Data File**
+
+```javascript
+// Inisialisasi file data jika belum ada
+const dataFiles = [
+    "warns.json",
+    "owners.json",
+    "premiums.json",
+    "botinfo.json",
+];
+
+dataFiles.forEach((file) => {
+    const filePath = path.join(__dirname, "data", file);
+    if (!fs.existsSync(filePath)) {
+        let defaultContent = "{}";
+        if (file === "owners.json" || file === "premiums.json") {
+            defaultContent = "[]";
+        } else if (file === "botinfo.json") {
+            defaultContent = JSON.stringify({ botName: "My Telegram Bot", ownerName: "Bot Owner", thumbnail: null }, null, 2);
+        }
+        fs.writeFileSync(filePath, defaultContent);
+        logger.info(`File data ${file} berhasil diinisialisasi.`);
+    }
+});
+```
+
+Kode ini memastikan bahwa semua file data JSON yang diperlukan (`warns.json`, `owners.json`, `premiums.json`, `botinfo.json`) ada di folder `data/`. Jika tidak ada, file akan dibuat dengan konten default.
+
+**Potongan Kode: Auto Load Command dan Registrasi Modul**
+
+```javascript
+// Auto load command
+const commands = [];
+const loadCommands = (dir) => {
+    const files = fs.readdirSync(dir, { withFileTypes: true });
+
+    for (const file of files) {
+        const fullPath = path.join(dir, file.name);
+        if (file.isDirectory()) {
+            loadCommands(fullPath); // Rekursif untuk subfolder
+        } else if (file.isFile() && file.name.endsWith(".js")) {
+            const commandModule = require(fullPath);
+            if (commandModule.name && commandModule.register) {
+                // Untuk command baru dengan fungsi register
+                commandModule.register(bot); // Panggil fungsi register dan berikan instance bot
+                logger.info(`Module registered: ${file.name}`);
+                // Jika ada command name yang eksplisit, tambahkan ke daftar commands untuk setMyCommands
+                if (commandModule.name) {
+                    commands.push(commandModule);
+                }
+            } else if (commandModule.name && commandModule.execute) {
+                // Kompatibilitas mundur untuk command lama (jika ada)
+                commands.push(commandModule);
+                logger.info(`Legacy command loaded: ${commandModule.name}`);
+                if (commandModule.middleware && Array.isArray(commandModule.middleware)) {
+                    bot.command(commandModule.name, ...commandModule.middleware, commandModule.execute);
+                } else {
+                    bot.command(commandModule.name, commandModule.execute);
+                }
+            }
+        }
+    }
+};
+
+loadCommands(path.join(__dirname, "commands"));
+```
+
+Fungsi `loadCommands` membaca semua file `.js` di folder `commands/` (termasuk subfolder). Jika modul mengekspor fungsi `register`, fungsi tersebut akan dipanggil dengan instance `bot` Telegraf, memungkinkan modul untuk mendaftarkan semua handler-nya sendiri. Ini adalah inti dari arsitektur modular yang baru.
+
+**Potongan Kode: Logging Command**
+
+```javascript
+bot.use(async (ctx, next) => {
+    if (ctx.message && ctx.message.text && ctx.message.text.startsWith("/")) {
+        const commandName = ctx.message.text.split(" ")[0];
+        const user = ctx.from;
+        const chatType = ctx.chat.type;
+        const chatName = ctx.chat.title || ctx.chat.username || chatType;
+        logger.info(`Command: ${commandName} | User: ${user.first_name} (${user.id}) | Chat: ${chatName} (${chatType})`);
+    }
+    await next();
+});
+```
+
+Middleware ini mencegat setiap pesan yang masuk. Jika pesan adalah command (diawali `/`), ia akan mencatat informasi command, user yang menjalankannya, dan detail chat (grup/private) menggunakan modul `logger`.
+
+**Potongan Kode: Anti-Link dan Sistem Warn**
+
+```javascript
+bot.on("message", async (ctx, next) => {
+    if (ctx.message.text) {
+        const messageText = ctx.message.text.toLowerCase();
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+
+        if (urlRegex.test(messageText)) {
+            const chatMember = await ctx.getChatMember(ctx.from.id);
+            if (!["administrator", "creator"].includes(chatMember.status)) {
+                try {
+                    await ctx.deleteMessage(ctx.message.message_id);
+                    logger.warn(`Link terdeteksi dan dihapus dari ${ctx.chat.title || ctx.chat.type} oleh ${ctx.from.first_name} (${ctx.from.id})`);
+                    
+                    // Logika sistem warn
+                    const warnsPath = path.join(__dirname, "data", "warns.json");
+                    let warns = {};
+                    if (fs.existsSync(warnsPath)) {
+                        warns = JSON.parse(fs.readFileSync(warnsPath, "utf8"));
+                    }
+
+                    const userId = ctx.from.id.toString();
+                    if (!warns[ctx.chat.id]) {
+                        warns[ctx.chat.id] = {};
+                    }
+                    if (!warns[ctx.chat.id][userId]) {
+                        warns[ctx.chat.id][userId] = 0;
+                    }
+                    warns[ctx.chat.id][userId]++;
+
+                    fs.writeFileSync(warnsPath, JSON.stringify(warns, null, 2));
+
+                    if (warns[ctx.chat.id][userId] >= 3) {
+                        await ctx.kickChatMember(ctx.from.id);
+                        ctx.reply(`${ctx.from.first_name} telah di-kick karena mencapai 3 warn.`);
+                        delete warns[ctx.chat.id][userId]; // Reset warn setelah kick
+                        fs.writeFileSync(warnsPath, JSON.stringify(warns, null, 2));
+                    } else {
+                        ctx.reply(`${ctx.from.first_name}, link tidak diizinkan! Warn ke-${warns[ctx.chat.id][userId]} (maks 3).`);
+                    }
+                } catch (error) {
+                    logger.error(`Gagal menghapus pesan atau mengelola warn: ${error.message}`);
+                }
+            }
+        }
+    }
+    next();
+});
+```
+
+Middleware `bot.on("message")` ini mendeteksi pesan yang mengandung URL. Jika pengirim bukan admin, pesan akan dihapus dan user akan mendapatkan warn. Setelah 3 warn, user akan di-kick dari grup. Data warn disimpan di `data/warns.json`.
+
+### `config.js`
+
+Berisi konfigurasi dasar bot.
+
+```javascript
+module.exports = {
+    botToken: process.env.BOT_TOKEN || 'YOUR_BOT_TOKEN_HERE',
+    ownerId: process.env.OWNER_ID || null // Ganti dengan ID Telegram owner bot
+};
+```
+
+`botToken` adalah token API bot dari BotFather. `ownerId` adalah ID Telegram dari owner utama bot yang memiliki akses penuh ke semua command `ownerOnly`.
+
+### `utils/logger.js`
+
+Modul utilitas untuk logging.
+
+```javascript
+const fs = require('fs');
+const path = require('path');
+
+class Logger {
+    constructor() {
+        this.logDir = path.join(__dirname, '../logs');
+        if (!fs.existsSync(this.logDir)) {
+            fs.mkdirSync(this.logDir, { recursive: true });
+        }
+    }
+
+    formatTime() {
+        return new Date().toLocaleString('id-ID');
+    }
+
+    log(level, message) {
+        const timestamp = this.formatTime();
+        const logMessage = `[${timestamp}] [${level.toUpperCase()}] ${message}`;
+        
+        console.log(logMessage);
+        
+        const logFile = path.join(this.logDir, `${new Date().toISOString().split('T')[0]}.log`);
+        fs.appendFileSync(logFile, logMessage + '\n');
+    }
+
+    info(message) {
+        this.log('info', message);
+    }
+
+    error(message) {
+        this.log('error', message);
+    }
+
+    warn(message) {
+        this.log('warn', message);
+    }
+
+    debug(message) {
+        this.log('debug', message);
+    }
+}
+
+module.exports = new Logger();
+```
+
+`Logger` mencatat pesan ke konsol dan juga menyimpannya ke file log harian di folder `logs/`. Ini sangat berguna untuk debugging dan memantau aktivitas bot.
+
+### `middlewares/ownerOnly.js` (Contoh Middleware)
+
+Middleware adalah fungsi yang dijalankan sebelum handler command utama. Ini adalah contoh middleware untuk membatasi akses.
+
+```javascript
+const fs = require('fs');
+const path = require('path');
+const config = require('../config');
+
+module.exports = async (ctx, next) => {
+    const userId = ctx.from.id;
+    const ownersPath = path.join(__dirname, '../data/owners.json');
+    
+    let owners = [];
+    if (fs.existsSync(ownersPath)) {
+        owners = JSON.parse(fs.readFileSync(ownersPath, 'utf8'));
+    }
+    
+    // Memeriksa apakah user adalah owner utama (dari config) atau owner tambahan (dari data/owners.json)
+    if (userId != config.ownerId && !owners.includes(userId)) {
+        return ctx.reply('Perintah ini hanya bisa digunakan oleh owner bot.');
+    }
+    
+    await next(); // Lanjutkan ke handler command jika user adalah owner
+};
+```
+
+Middleware ini memeriksa apakah `userId` pengirim pesan cocok dengan `ownerId` di `config.js` atau ada di daftar `owners.json`. Jika tidak, pesan balasan akan dikirim dan eksekusi command dihentikan.
+
 ## Fitur dan Command
 
 ### Command Minimal
 
-*   `/start` - Menampilkan info bot (nama bot, nama owner, thumbnail).
-*   `/ban` - Ban user dari grup (hanya admin grup).
-*   `/tebak` - Game tebak angka 1-10 dengan 3 kesempatan. Setelah memulai game, user hanya perlu mengetik angka tebakan tanpa command.
-*   `/addowner [id]` - Menambahkan user sebagai owner bot (hanya owner utama).
-*   `/delowner [id]` - Menghapus user dari daftar owner bot (hanya owner utama).
-*   `/addprem [id]` - Menambahkan user sebagai premium (hanya owner utama).
-*   `/delprem [id]` - Menghapus user dari daftar premium (hanya owner utama).
-*   `/setnamebot [text]` - Mengubah nama bot (hanya owner).
-*   `/setownername [text]` - Mengubah nama owner (hanya owner).
-*   `/setthumb` - Mengubah thumbnail bot (reply foto, hanya owner).
-*   `/cekid` - Menampilkan ID user yang mengirim command.
-*   `/premiumfeature` - Contoh fitur khusus untuk user premium.
-*   `/ownerfeature` - Contoh fitur khusus untuk owner bot.
-*   `/groupfeature` - Contoh fitur khusus untuk grup.
+*  `/addowner` - Menambahkan owner bot
+*  `/addprem` - Menambahkan user premium
+*  `/ban` - Ban user dari grup
+*  `/cekid` - Menampilkan ID user
+*  `/cmd` - Manajemen file command
+*  `/delowner` - Menghapus owner bot
+*  `/delprem` - Menghapus user premium
+*  `/eval` - Eksekusi kode JavaScript
+*  `/groupfeature` - Percobaan Khusus Grup.
+*  `/help` - Menampilkan daftar perintah
+*  `/interactive` - Percobaan Fitur Button sesi
+*  `/ownerfeature` - Percobaan Fitur Owner.
+*  `/premiumfeature` - Percobaan Fitur Premium.
+*  `/setnamebot` - Mengubah nama bot
+*  `/setownername` - Mengubah nama owner
+*  `/setthumb` - Mengubah thumbnail bot
+*  `/shell` - Akses shell via bot
+*  `/start` - Menampilkan info bot
+*  `/tebak` - Percobaan Fitur Game
 
 ### Fitur Tambahan
 
@@ -109,13 +372,45 @@ node bot.js
 *   Pastikan Anda telah membuat bot di BotFather dan mendapatkan token bot.
 *   Untuk fitur `ban`, bot harus memiliki hak admin di grup.
 *   ID owner awal bisa diatur di `config.js` atau melalui variabel lingkungan `OWNER_ID`.
-*   PERLU DI INGAT INI HANYA BASE. KALIAN HARUS MENYEMPURNAKAN SENDIRI SISANYA
+*   **INI MASIH BASE, FITUR KALIAN SENDIRI YANG MENAMBAHKAN.** gimana caranya ?
 
----
 
-## Membuat Fitur Baru dengan Middleware dan Session
+## Menambah Fitur Baru (Command)
 
-Bot ini dirancang untuk memudahkan penambahan fitur baru, terutama yang memerlukan kontrol akses (owner, premium, grup) atau manajemen sesi. Berikut panduannya:
+Menambahkan command baru sangat mudah berkat arsitektur modular. Setiap fitur (command, tombol interaktif, sesi) dapat dienkapsulasi dalam satu file command.
+
+1.  **Buat File Command Baru:**
+    Buat file JavaScript baru di dalam folder `commands/`. Misalnya, `commands/newcommand.js`.
+
+2.  **Struktur File Command:**
+    Setiap file command harus mengekspor sebuah objek dengan properti `name`, `description`, dan fungsi `register`. Fungsi `register` ini akan menerima instance `bot` Telegraf sebagai argumen, di mana Anda dapat mendaftarkan semua handler terkait fitur tersebut (command, action, text handler, dll.).
+
+    ```javascript
+    // commands/newcommand.js
+    const ownerOnly = require("../middlewares/ownerOnly"); // Contoh jika perlu middleware
+
+    module.exports = {
+        name: "newcommand", // Nama command (misal: /newcommand)
+        description: "Deskripsi singkat tentang command ini.",
+        register: (bot) => {
+            bot.command("newcommand", ownerOnly, async (ctx) => {
+                // Logika command Anda di sini
+                await ctx.reply("Ini adalah command baru!");
+            });
+
+            // Anda bisa menambahkan handler lain di sini, misalnya bot.action atau bot.on("text")
+            // bot.action("my_button_action", async (ctx) => { /* ... */ });
+            // bot.on("text", async (ctx, next) => { /* ... */ next(); });
+        },
+    };
+    ```
+
+3.  **Bot Akan Otomatis Memuat:**
+    File `bot.js` akan secara otomatis mendeteksi dan memuat command baru ini saat bot dijalankan, serta menambahkannya ke daftar command bot Telegram (`setMyCommands`).
+
+## Membuat Fitur Baru dengan Middleware, Session, dan Interaksi Tombol
+
+Bot ini dirancang untuk memudahkan penambahan fitur baru, terutama yang memerlukan kontrol akses (owner, premium, grup), manajemen sesi, atau interaksi dengan tombol. Berikut panduannya:
 
 ### 1. Menggunakan Middleware untuk Kontrol Akses
 
@@ -125,148 +420,135 @@ Untuk membatasi akses command, Anda bisa menggunakan middleware yang sudah dised
 *   `premiumOnly.js`: Memastikan command hanya bisa diakses oleh user premium atau owner bot.
 *   `groupOnly.js`: Memastikan command hanya bisa digunakan di dalam grup, bukan di private chat.
 
-**Contoh Penggunaan Middleware:**
+**Contoh Penggunaan Middleware dalam Fungsi `register`:**
 
 ```javascript
-// commands/premiumfeature.js
-const premiumOnly = require("../middlewares/premiumOnly");
-
-module.exports = {
-    name: "premiumfeature",
-    description: "Fitur khusus untuk user premium.",
-    middleware: [premiumOnly], // Tambahkan middleware di sini
-    execute: async (ctx) => {
-        await ctx.reply("Selamat! Anda adalah user premium dan bisa mengakses fitur ini.");
-    },
-};
-```
-
-```javascript
-// commands/ownerfeature.js
+// commands/fitur_owner.js
 const ownerOnly = require("../middlewares/ownerOnly");
 
 module.exports = {
-    name: "ownerfeature",
-    description: "Fitur khusus untuk owner bot.",
-    middleware: [ownerOnly],
-    execute: async (ctx) => {
-        await ctx.reply("Halo owner! Ini adalah fitur khusus untuk Anda.");
-    },
-};
-```
-
-```javascript
-// commands/groupfeature.js
-const groupOnly = require("../middlewares/groupOnly");
-
-module.exports = {
-    name: "groupfeature",
-    description: "Fitur khusus untuk grup.",
-    middleware: [groupOnly],
-    execute: async (ctx) => {
-        const groupName = ctx.chat.title || "grup ini";
-        await ctx.reply(`Fitur ini hanya bisa digunakan di grup. Selamat datang di ${groupName}!`);
+    name: "fitur_owner",
+    description: "Ini adalah fitur khusus owner.",
+    register: (bot) => {
+        bot.command("fitur_owner", ownerOnly, async (ctx) => {
+            await ctx.reply("Anda adalah owner, jadi Anda bisa mengakses ini!");
+        });
     },
 };
 ```
 
 ### 2. Membuat Fitur dengan Session (Contoh: Game Tebak Angka)
 
-Untuk fitur yang memerlukan penyimpanan status per user (sesi), Anda bisa menggunakan `Map` atau objek JavaScript sederhana yang disimpan di memori. Contoh terbaik adalah game `/tebak` yang sudah diimplementasikan.
+Untuk fitur yang memerlukan penyimpanan status per user (sesi), Anda bisa menggunakan `Map` atau objek JavaScript sederhana yang disimpan di memori, atau menggunakan fitur sesi Telegraf (`ctx.session`). Contoh terbaik adalah game `/tebak` yang sudah diimplementasikan.
 
-**Konsep Session:**
+**Konsep Session dengan `Map` (seperti di `/tebak`):**
 
 Pada file `commands/tebak.js`, sebuah `Map` bernama `gameSession` digunakan untuk menyimpan status game setiap user. Kunci `Map` adalah `userId` dan nilainya adalah objek yang berisi `correctNumber` dan `attemptsLeft`.
 
 ```javascript
-// commands/tebak.js
+// commands/tebak.js (potongan kode)
 const gameSession = new Map(); // userId -> { correctNumber, attemptsLeft }
 
 module.exports = {
     name: 'tebak',
     description: 'Game tebak angka 1-10 dengan 3 kesempatan',
-    execute: async (ctx) => {
-        const userId = ctx.from.id;
-        const args = ctx.message.text.split(' ');
+    register: (bot) => {
+        bot.command('tebak', async (ctx) => {
+            // ... logika memulai game ...
+        });
 
-        if (args.length === 1) { // User memulai game baru
-            if (gameSession.has(userId)) {
-                return ctx.reply('Kamu sudah memiliki game yang sedang berjalan. Tebak angkanya atau ketik /tebak untuk memulai ulang.');
-            }
-            const randomNumber = Math.floor(Math.random() * 10) + 1;
-            gameSession.set(userId, { correctNumber: randomNumber, attemptsLeft: 3 });
-            return ctx.reply(`Game tebak angka dimulai! Tebak angka dari 1-10. Kamu punya 3 kesempatan.`);
-        }
+        // Handler untuk pesan teks yang merupakan tebakan angka
+        bot.on('text', async (ctx, next) => {
+            const userId = ctx.from.id;
+            const messageText = ctx.message.text.trim();
 
-        // User menebak angka
-        if (gameSession.has(userId)) {
-            const guess = parseInt(args[1]);
-            if (isNaN(guess) || guess < 1 || guess > 10) {
-                return ctx.reply('Masukkan angka yang valid (1-10).');
-            }
-            
-            const session = gameSession.get(userId);
-            session.attemptsLeft--;
-
-            if (guess === session.correctNumber) {
-                gameSession.delete(userId);
-                return ctx.reply(`🎉 Selamat! Tebakan kamu benar. Angkanya adalah ${session.correctNumber}.`);
-            } else if (session.attemptsLeft > 0) {
-                gameSession.set(userId, session); 
-                return ctx.reply(`❌ Salah! Sisa kesempatan: ${session.attemptsLeft}.`);
+            // Cek apakah user sedang dalam sesi game tebak angka dan pesan adalah angka
+            if (gameSession.has(userId) && !isNaN(parseInt(messageText)) && !messageText.startsWith('/')) {
+                // ... logika memproses tebakan ...
             } else {
-                gameSession.delete(userId);
-                return ctx.reply(`😔 Kesempatanmu habis! Angka yang benar adalah ${session.correctNumber}. Ketik /tebak untuk bermain lagi.`);
+                await next(); // Lanjutkan ke handler lain jika bukan tebakan angka
             }
-        } else {
-            return ctx.reply('Kamu belum memulai game. Ketik /tebak untuk memulai.');
-        }
-    },
-    gameSession: gameSession // Penting: Export gameSession agar bisa diakses oleh bot.js
+        });
+    }
 };
 ```
 
-**Integrasi dengan `bot.js`:**
+**Penting:** Ketika menggunakan `bot.on('text')` di dalam fungsi `register` command, pastikan untuk selalu memanggil `next()` jika pesan tidak relevan dengan sesi command Anda. Ini memungkinkan handler `bot.on('text')` dari command lain atau middleware global untuk memproses pesan.
 
-Untuk memungkinkan user menebak angka tanpa harus mengetik `/tebak` setiap kali, `bot.js` memiliki handler `bot.on("text")` yang memeriksa apakah user sedang dalam sesi game tebak angka dan pesan yang dikirim adalah angka. Jika ya, pesan tersebut akan diproses oleh logika command `/tebak`.
+### 3. Membuat Fitur Interaktif dengan Tombol (Inline Keyboard)
+
+Anda dapat membuat pesan dengan tombol interaktif (inline keyboard) dan menangani aksi tombol tersebut sepenuhnya di dalam file command. Gunakan `bot.action` untuk menangani `callback_data` dari tombol.
+
+**Contoh Fitur Interaktif (`commands/interactive_example.js`):**
 
 ```javascript
-// bot.js (potongan kode)
-const tebakCommand = require("./commands/tebak"); // Import tebak command untuk mengakses gameSession
+// commands/interactive_example.js
+module.exports = {
+    name: "interactive",
+    description: "Contoh fitur interaktif dengan tombol dan sesi.",
+    register: (bot) => {
+        const userStates = new Map(); // Untuk menyimpan state sesi per user
 
-// ... kode lainnya ...
+        bot.command("interactive", async (ctx) => {
+            userStates.set(ctx.from.id, { step: 1 });
+            await ctx.reply(
+                "Halo! Ini adalah contoh interaktif. Pilih opsi di bawah:",
+                {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "Opsi A", callback_data: "interactive_option_a" }],
+                            [{ text: "Opsi B", callback_data: "interactive_option_b" }],
+                        ],
+                    },
+                }
+            );
+        });
 
-// Handle tebakan angka untuk game /tebak
-bot.on("text", async (ctx, next) => {
-    const userId = ctx.from.id;
-    const messageText = ctx.message.text.trim();
+        bot.action("interactive_option_a", async (ctx) => {
+            const userId = ctx.from.id;
+            const state = userStates.get(userId);
 
-    // Cek apakah user sedang dalam sesi game tebak angka dan pesan adalah angka
-    if (tebakCommand.gameSession.has(userId) && !isNaN(parseInt(messageText)) && !messageText.startsWith("/")) {
-        // Panggil fungsi execute dari command tebak dengan argumen yang sesuai
-        // Kita perlu membuat ctx.message.text seolah-olah itu adalah command /tebak [angka]
-        ctx.message.text = `/tebak ${messageText}`;
-        await tebakCommand.execute(ctx);
-    } else {
-        await next(); // Lanjutkan ke middleware atau handler lain jika bukan tebakan angka
-    }
-});
+            if (state && state.step === 1) {
+                userStates.set(userId, { step: 2, selectedOption: "A" });
+                await ctx.editMessageText("Anda memilih Opsi A. Sekarang, ketik pesan rahasia Anda:");
+            } else {
+                await ctx.reply("Sesi Anda tidak valid atau sudah berakhir. Silakan mulai lagi dengan /interactive.");
+            }
+            await ctx.answerCbQuery(); // Penting untuk menghilangkan loading di tombol
+        });
+
+        bot.action("interactive_option_b", async (ctx) => {
+            const userId = ctx.from.id;
+            const state = userStates.get(userId);
+
+            if (state && state.step === 1) {
+                userStates.set(userId, { step: 2, selectedOption: "B" });
+                await ctx.editMessageText("Anda memilih Opsi B. Sekarang, ketik pesan rahasia Anda:");
+            } else {
+                await ctx.reply("Sesi Anda tidak valid atau sudah berakhir. Silakan mulai lagi dengan /interactive.");
+            }
+            await ctx.answerCbQuery();
+        });
+
+        // Handle pesan teks setelah memilih opsi
+        bot.on("text", async (ctx, next) => {
+            const userId = ctx.from.id;
+            const state = userStates.get(userId);
+
+            // Pastikan ini adalah pesan untuk sesi interaktif ini dan bukan command lain
+            if (state && state.step === 2 && !ctx.message.text.startsWith("/")) {
+                const secretMessage = ctx.message.text;
+                await ctx.reply(`Pesan rahasia Anda ('${secretMessage}') telah diterima untuk Opsi ${state.selectedOption}. Sesi berakhir.`);
+                userStates.delete(userId); // Hapus sesi setelah selesai
+            } else {
+                await next(); // Lanjutkan ke handler lain jika bukan bagian dari sesi ini
+            }
+        });
+    },
+};
 ```
-
-Dengan pola ini, Anda bisa membuat fitur interaktif lainnya yang memerlukan sesi atau state per user.
-
-## 6. Pengujian
-
-Untuk menguji bot, pastikan Anda telah mengatur `BOT_TOKEN` dan `OWNER_ID` di `config.js` atau sebagai variabel lingkungan. Kemudian jalankan bot:
-
-```bash
-npm start
-```
-
-Anda bisa mencoba command-command yang tersedia dan mengamati log di konsol atau di file log di folder `logs/`.
-
 
 ---
 
-Dukung aku dengan memberikan star pada repo ini dan follow akun ku
-terimakasih
+cukup sekian dokumentasi singkat pada repo ini, saya harap kalian semua suka dan bisa menggunakan base telegram ini secara maksimal
+jangan lupa untuk berikan star pada repo ini dan follow akun github saya terima kasih

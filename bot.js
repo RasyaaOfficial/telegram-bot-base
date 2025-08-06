@@ -1,12 +1,14 @@
-const { Telegraf } = require("telegraf");
+const { Telegraf, session } = require("telegraf");
 const fs = require("fs");
 const path = require("path");
 const config = require("./config");
 const logger = require("./utils/logger");
-const tebakCommand = require("./commands/tebak"); // Import tebak command untuk mengakses gameSession
 
 // Inisialisasi bot
 const bot = new Telegraf(config.botToken);
+
+// Gunakan middleware session
+bot.use(session());
 
 // Inisialisasi file data jika belum ada
 const dataFiles = [
@@ -40,16 +42,25 @@ const loadCommands = (dir) => {
         if (file.isDirectory()) {
             loadCommands(fullPath);
         } else if (file.isFile() && file.name.endsWith(".js")) {
-            const command = require(fullPath);
-            if (command.name && command.execute) {
-                commands.push(command);
-                logger.info(`Command loaded: ${command.name}`);
+            const commandModule = require(fullPath);
+            if (commandModule.name && commandModule.execute) {
+                // Untuk command lama yang hanya punya name dan execute
+                commands.push(commandModule);
+                logger.info(`Command loaded: ${commandModule.name}`);
 
-                // Register command with Telegraf
-                if (command.middleware && Array.isArray(command.middleware)) {
-                    bot.command(command.name, ...command.middleware, command.execute);
+                if (commandModule.middleware && Array.isArray(commandModule.middleware)) {
+                    bot.command(commandModule.name, ...commandModule.middleware, commandModule.execute);
                 } else {
-                    bot.command(command.name, command.execute);
+                    bot.command(commandModule.name, commandModule.execute);
+                }
+            } else if (typeof commandModule.register === 'function') {
+                // Untuk command baru dengan fungsi register
+                commandModule.register(bot);
+                logger.info(`Module registered: ${file.name}`);
+                // Asumsi command name akan didaftarkan di dalam fungsi register
+                // Jika ada command name yang eksplisit, bisa ditambahkan ke daftar commands
+                if (commandModule.name) {
+                    commands.push(commandModule);
                 }
             }
         }
@@ -68,22 +79,6 @@ bot.use(async (ctx, next) => {
         logger.info(`Command: ${commandName} | User: ${user.first_name} (${user.id}) | Chat: ${chatName} (${chatType})`);
     }
     await next();
-});
-
-// Handle tebakan angka untuk game /tebak
-bot.on("text", async (ctx, next) => {
-    const userId = ctx.from.id;
-    const messageText = ctx.message.text.trim();
-
-    // Cek apakah user sedang dalam sesi game tebak angka dan pesan adalah angka
-    if (tebakCommand.gameSession.has(userId) && !isNaN(parseInt(messageText)) && !messageText.startsWith("/")) {
-        // Panggil fungsi execute dari command tebak dengan argumen yang sesuai
-        // Kita perlu membuat ctx.message.text seolah-olah itu adalah command /tebak [angka]
-        ctx.message.text = `/tebak ${messageText}`;
-        await tebakCommand.execute(ctx);
-    } else {
-        await next(); // Lanjutkan ke middleware atau handler lain jika bukan tebakan angka
-    }
 });
 
 // Set bot commands (for /help and Telegram's command list)
@@ -143,8 +138,26 @@ bot.on("message", async (ctx, next) => {
 });
 
 // Error handling
-bot.catch((err, ctx) => {
+bot.catch(async (err, ctx) => {
     logger.error(`Error for ${ctx.updateType}: ${err}`);
+
+    const errorMessage = `Terjadi error pada bot!\n` +
+                         `Update Type: ${ctx.updateType}\n` +
+                         `Pesan: ${err.message}\n` +
+                         `Stack: <pre>${err.stack}</pre>`;
+
+    if (config.ownerId) {
+        try {
+            await bot.telegram.sendMessage(config.ownerId, errorMessage, { parse_mode: "HTML" });
+            logger.info(`Error notification sent to owner ${config.ownerId}`);
+        } catch (ownerError) {
+            logger.error(`Gagal mengirim notifikasi error ke owner: ${ownerError.message}`);
+        }
+    }
+
+    if (ctx.chat && ctx.chat.type !== 'private') {
+        await ctx.reply('Maaf, terjadi kesalahan. Owner bot telah diberitahu.');
+    }
 });
 
 // Start bot
