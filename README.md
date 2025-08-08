@@ -1,6 +1,10 @@
 # telegram-bot-base
 
+![preview](https://cloudkuimages.com/uploads/images/FMGCZLRX.jpg)
+
 Bot Telegram ini dibangun menggunakan Telegraf.js dengan arsitektur modular, memudahkan penambahan fitur dan pemeliharaan.
+
+Bot Preview: [@flowfalcon_project_bot](https://t.me/flowfalcon_project_bot)
 
 ## Struktur Project
 
@@ -339,6 +343,7 @@ Middleware ini memeriksa apakah `userId` pengirim pesan cocok dengan `ownerId` d
 *  `/addowner` - Menambahkan owner bot
 *  `/addprem` - Menambahkan user premium
 *  `/ban` - Ban user dari grup
+*  `/backup` - Backup file bot dalam format ZIP
 *  `/cekid` - Menampilkan ID user
 *  `/cmd` - Manajemen file command
 *  `/delowner` - Menghapus owner bot
@@ -552,3 +557,4 @@ module.exports = {
 
 cukup sekian dokumentasi singkat pada repo ini, saya harap kalian semua suka dan bisa menggunakan base telegram ini secara maksimal
 jangan lupa untuk berikan star pada repo ini dan follow akun github saya terima kasih
+    

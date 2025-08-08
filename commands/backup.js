@@ -17,7 +17,6 @@ module.exports = {
 
       // List isi yang akan di-backup
       const backupItems = [
-        "DOCUMENTATION.md",
         "README.md",
         "bot.js",
         "config.js",

@@ -3,14 +3,10 @@ const fs = require("fs");
 const path = require("path");
 const config = require("./config");
 const logger = require("./utils/logger");
-
-// Inisialisasi bot
 const bot = new Telegraf(config.botToken);
 
-// Gunakan middleware session
 bot.use(session());
 
-// Inisialisasi file data jika belum ada
 const dataFiles = [
     "warns.json",
     "owners.json",
@@ -32,8 +28,9 @@ dataFiles.forEach((file) => {
     }
 });
 
-// Auto load command
 const commands = [];
+const loadedCommandNames = new Set();
+
 const loadCommands = (dir) => {
     const files = fs.readdirSync(dir, { withFileTypes: true });
 
@@ -43,24 +40,24 @@ const loadCommands = (dir) => {
             loadCommands(fullPath);
         } else if (file.isFile() && file.name.endsWith(".js")) {
             const commandModule = require(fullPath);
-            if (commandModule.name && commandModule.execute) {
-                // Untuk command lama yang hanya punya name dan execute
-                commands.push(commandModule);
-                logger.info(`Command loaded: ${commandModule.name}`);
-
+            if (typeof commandModule.register === "function") {
+                commandModule.register(bot); 
+                logger.info(`Module registered: ${file.name}`);
+                
+                if (commandModule.name && !loadedCommandNames.has(commandModule.name)) {
+                    commands.push({ command: commandModule.name, description: commandModule.description || "" });
+                    loadedCommandNames.add(commandModule.name);
+                }
+            } else if (commandModule.name && commandModule.execute) {
+                if (!loadedCommandNames.has(commandModule.name)) {
+                    commands.push({ command: commandModule.name, description: commandModule.description || "" });
+                    loadedCommandNames.add(commandModule.name);
+                }
+                logger.info(`Legacy command loaded: ${commandModule.name}`);
                 if (commandModule.middleware && Array.isArray(commandModule.middleware)) {
                     bot.command(commandModule.name, ...commandModule.middleware, commandModule.execute);
                 } else {
                     bot.command(commandModule.name, commandModule.execute);
-                }
-            } else if (typeof commandModule.register === 'function') {
-                // Untuk command baru dengan fungsi register
-                commandModule.register(bot);
-                logger.info(`Module registered: ${file.name}`);
-                // Asumsi command name akan didaftarkan di dalam fungsi register
-                // Jika ada command name yang eksplisit, bisa ditambahkan ke daftar commands
-                if (commandModule.name) {
-                    commands.push(commandModule);
                 }
             }
         }
@@ -69,7 +66,6 @@ const loadCommands = (dir) => {
 
 loadCommands(path.join(__dirname, "commands"));
 
-// Logging setiap command yang dijalankan
 bot.use(async (ctx, next) => {
     if (ctx.message && ctx.message.text && ctx.message.text.startsWith("/")) {
         const commandName = ctx.message.text.split(" ")[0];
@@ -81,15 +77,8 @@ bot.use(async (ctx, next) => {
     await next();
 });
 
-// Set bot commands (for /help and Telegram's command list)
-bot.telegram.setMyCommands(
-    commands.map((cmd) => ({
-        command: cmd.name,
-        description: cmd.description || "",
-    }))
-);
+bot.telegram.setMyCommands(commands);
 
-// Anti-link feature
 bot.on("message", async (ctx, next) => {
     if (ctx.message.text) {
         const messageText = ctx.message.text.toLowerCase();
@@ -155,8 +144,8 @@ bot.catch(async (err, ctx) => {
         }
     }
 
-    if (ctx.chat && ctx.chat.type !== 'private') {
-        await ctx.reply('Maaf, terjadi kesalahan. Owner bot telah diberitahu.');
+    if (ctx.chat && ctx.chat.type !== "private") {
+        await ctx.reply("Maaf, terjadi kesalahan. Owner bot telah diberitahu.");
     }
 });
 
@@ -167,5 +156,4 @@ logger.info("Bot started!");
 // Enable graceful stop
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));
-
 
