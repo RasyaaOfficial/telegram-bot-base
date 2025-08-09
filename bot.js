@@ -31,29 +31,38 @@ dataFiles.forEach((file) => {
 const commands = [];
 const loadedCommandNames = new Set();
 
-const loadCommands = (dir) => {
+const loadCommands = (dir, category = 'main') => {
     const files = fs.readdirSync(dir, { withFileTypes: true });
 
     for (const file of files) {
         const fullPath = path.join(dir, file.name);
         if (file.isDirectory()) {
-            loadCommands(fullPath);
+            // Gunakan nama folder sebagai kategori
+            loadCommands(fullPath, file.name);
         } else if (file.isFile() && file.name.endsWith(".js")) {
             const commandModule = require(fullPath);
             if (typeof commandModule.register === "function") {
                 commandModule.register(bot); 
-                logger.info(`Module registered: ${file.name}`);
+                logger.info(`Module registered: ${file.name} (Category: ${category})`);
                 
                 if (commandModule.name && !loadedCommandNames.has(commandModule.name)) {
-                    commands.push({ command: commandModule.name, description: commandModule.description || "" });
+                    commands.push({ 
+                        command: commandModule.name, 
+                        description: commandModule.description || "",
+                        category: category
+                    });
                     loadedCommandNames.add(commandModule.name);
                 }
             } else if (commandModule.name && commandModule.execute) {
                 if (!loadedCommandNames.has(commandModule.name)) {
-                    commands.push({ command: commandModule.name, description: commandModule.description || "" });
+                    commands.push({ 
+                        command: commandModule.name, 
+                        description: commandModule.description || "",
+                        category: category
+                    });
                     loadedCommandNames.add(commandModule.name);
                 }
-                logger.info(`Legacy command loaded: ${commandModule.name}`);
+                logger.info(`Legacy command loaded: ${commandModule.name} (Category: ${category})`);
                 if (commandModule.middleware && Array.isArray(commandModule.middleware)) {
                     bot.command(commandModule.name, ...commandModule.middleware, commandModule.execute);
                 } else {
@@ -63,68 +72,100 @@ const loadCommands = (dir) => {
         }
     }
 };
-
-loadCommands(path.join(__dirname, "commands"));
-
 bot.use(async (ctx, next) => {
     if (ctx.message && ctx.message.text && ctx.message.text.startsWith("/")) {
         const commandName = ctx.message.text.split(" ")[0];
+        const args = ctx.message.text.split(" ").slice(1);
         const user = ctx.from;
-        const chatType = ctx.chat.type;
-        const chatName = ctx.chat.title || ctx.chat.username || chatType;
-        logger.info(`Command: ${commandName} | User: ${user.first_name} (${user.id}) | Chat: ${chatName} (${chatType})`);
+        const chat = ctx.chat;
+        
+        // Format user info
+        const userName = user.first_name + (user.last_name ? ` ${user.last_name}` : '');
+        const userHandle = user.username ? `@${user.username}` : `ID:${user.id}`;
+        
+        // Format chat info
+        let chatInfo = "";
+        let chatType = "";
+        switch (chat.type) {
+            case "private":
+                chatInfo = "Private Message";
+                chatType = "🔒 Private";
+                break;
+            case "group":
+                chatInfo = `Group: ${chat.title || 'Unknown Group'}`;
+                chatType = `👥 Group`;
+                break;
+            case "supergroup":
+                chatInfo = `Supergroup: ${chat.title || 'Unknown Supergroup'}`;
+                chatType = `👥 Supergroup`;
+                break;
+            case "channel":
+                chatInfo = `Channel: ${chat.title || 'Unknown Channel'}`;
+                chatType = `📢 Channel`;
+                break;
+        }
+        
+        // Create detailed log message
+        const timestamp = new Date().toLocaleString('id-ID', {
+            timeZone: 'Asia/Jakarta',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        
+        const logMessage = [
+            `┌─ 📋 COMMAND EXECUTED ─────────────────────────────`,
+            `│ 🕒 Time: ${timestamp}`,
+            `│ ⚡ Command: ${commandName}`,
+            `│ 📝 Args: ${args.length > 0 ? args.join(' ') : 'None'}`,
+            `├─ 👤 USER INFO ─────────────────────────────────`,
+            `│ 📛 Name: ${userName}`,
+            `│ 🏷️  Handle: ${userHandle}`,
+            `│ 🆔 User ID: ${user.id}`,
+            `├─ 💬 CHAT INFO ─────────────────────────────────`,
+            `│ 📍 Type: ${chatType}`,
+            `│ 📋 Info: ${chatInfo}`,
+            `│ 🆔 Chat ID: ${chat.id}`,
+            `└─────────────────────────────────────────────────`
+        ].join('\n');
+        
+        logger.info(`\n${logMessage}`);
+        
+        // Optional: Save to command log file
+        const commandLogPath = path.join(__dirname, "logs", "commands.log");
+        const commandLogDir = path.dirname(commandLogPath);
+        
+        if (!fs.existsSync(commandLogDir)) {
+            fs.mkdirSync(commandLogDir, { recursive: true });
+        }
+        
+        const logEntry = {
+            timestamp: new Date().toISOString(),
+            command: commandName,
+            args: args,
+            user: {
+                id: user.id,
+                name: userName,
+                username: user.username || null
+            },
+            chat: {
+                id: chat.id,
+                type: chat.type,
+                title: chat.title || null
+            }
+        };
+        
+        fs.appendFileSync(commandLogPath, JSON.stringify(logEntry) + '\n');
     }
     await next();
 });
 
-bot.telegram.setMyCommands(commands);
+loadCommands(path.join(__dirname, "commands"));
+bot.telegram.setMyCommands(commands.map(cmd => ({ command: cmd.command, description: cmd.description })));
 
-bot.on("message", async (ctx, next) => {
-    if (ctx.message.text) {
-        const messageText = ctx.message.text.toLowerCase();
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
-
-        if (urlRegex.test(messageText)) {
-            const chatMember = await ctx.getChatMember(ctx.from.id);
-            if (!["administrator", "creator"].includes(chatMember.status)) {
-                try {
-                    await ctx.deleteMessage(ctx.message.message_id);
-                    logger.warn(`Link terdeteksi dan dihapus dari ${ctx.chat.title || ctx.chat.type} oleh ${ctx.from.first_name} (${ctx.from.id})`);
-                    
-                    // Warn system
-                    const warnsPath = path.join(__dirname, "data", "warns.json");
-                    let warns = {};
-                    if (fs.existsSync(warnsPath)) {
-                        warns = JSON.parse(fs.readFileSync(warnsPath, "utf8"));
-                    }
-
-                    const userId = ctx.from.id.toString();
-                    if (!warns[ctx.chat.id]) {
-                        warns[ctx.chat.id] = {};
-                    }
-                    if (!warns[ctx.chat.id][userId]) {
-                        warns[ctx.chat.id][userId] = 0;
-                    }
-                    warns[ctx.chat.id][userId]++;
-
-                    fs.writeFileSync(warnsPath, JSON.stringify(warns, null, 2));
-
-                    if (warns[ctx.chat.id][userId] >= 3) {
-                        await ctx.kickChatMember(ctx.from.id);
-                        ctx.reply(`${ctx.from.first_name} telah di-kick karena mencapai 3 warn.`);
-                        delete warns[ctx.chat.id][userId]; // Reset warn after kick
-                        fs.writeFileSync(warnsPath, JSON.stringify(warns, null, 2));
-                    } else {
-                        ctx.reply(`${ctx.from.first_name}, link tidak diizinkan! Warn ke-${warns[ctx.chat.id][userId]} (maks 3).`);
-                    }
-                } catch (error) {
-                    logger.error(`Gagal menghapus pesan atau mengelola warn: ${error.message}`);
-                }
-            }
-        }
-    }
-    next();
-});
 
 // Error handling
 bot.catch(async (err, ctx) => {

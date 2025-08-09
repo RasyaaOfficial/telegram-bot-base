@@ -13,7 +13,6 @@ module.exports = {
                 botInfo = JSON.parse(fs.readFileSync(botInfoPath, "utf8"));
             }
 
-            // Hitung runtime bot (asumsi bot dimulai saat process dimulai)
             const uptime = process.uptime();
             const days = Math.floor(uptime / 86400);
             const hours = Math.floor((uptime % 86400) / 3600);
@@ -26,7 +25,6 @@ module.exports = {
             if (minutes > 0) runtimeText += `${minutes} menit, `;
             runtimeText += `${seconds} detik`;
 
-            // Informasi tambahan
             const currentDate = new Date().toLocaleDateString('id-ID', {
                 weekday: 'long',
                 year: 'numeric',
@@ -34,12 +32,12 @@ module.exports = {
                 day: 'numeric'
             });
 
-            let message = `🤖 **${botInfo.botName}**\n\n`;
-            message += `👑 **Owner:** ${botInfo.ownerName}\n`;
-            message += `⏰ **Runtime:** ${runtimeText}\n`;
-            message += `📅 **Tanggal:** ${currentDate}\n`;
-            message += `💾 **Memory Usage:** ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB\n\n`;
-            message += `📋 Gunakan /help untuk melihat daftar perintah.`;
+            let message = `Halo! Welcome To **${botInfo.botName}**\n\n`;
+            message += `- **My Owner:** ${botInfo.ownerName}\n`;
+            message += `- **Runtime:** ${runtimeText}\n`;
+            message += `- **Tanggal:** ${currentDate}\n`;
+            message += `- **Memory Usage:** ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB\n\n`;
+            message += `- Gunakan /help untuk melihat daftar perintah.`;
 
             if (botInfo.thumbnail) {
                 await ctx.replyWithPhoto(botInfo.thumbnail, { 
