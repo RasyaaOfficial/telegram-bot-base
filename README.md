@@ -621,3 +621,9 @@ module.exports = {
 cukup sekian dokumentasi singkat pada repo ini, saya harap kalian semua suka dan bisa menggunakan base telegram ini secara maksimal
 jangan lupa untuk berikan star pada repo ini dan follow akun github saya terima kasih
     
+
+--
+
+### Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=FlowFalcon/telegram-bot-base&type=Date)](https://www.star-history.com/#FlowFalcon/telegram-bot-base&Date)
