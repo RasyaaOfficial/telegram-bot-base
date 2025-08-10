@@ -1,6 +1,6 @@
 {
   "name": "telegram-base-bot",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Telegram bot using Telegraf.js with modular architecture",
   "main": "bot.js",
   "scripts": {
