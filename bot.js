@@ -209,6 +209,7 @@ bot.use(async (ctx, next) => {
             const args = ctx.message.text.split(" ").slice(1);
             
             const logMessage = [
+                `=================================`,
                 `COMMAND EXECUTED`,
                 `Time: ${timestamp}`,
                 `Command: ${commandName}`,
@@ -220,7 +221,9 @@ bot.use(async (ctx, next) => {
                 `CHAT INFO`,
                 `Type: ${chatType}`,
                 `Info: ${chatInfo}`,
-                `Chat ID: ${chat.id}`
+                `Chat ID: ${chat.id}`,
+                `=================================`,
+                ``
             ].join('\n');
 
             logger.info(`\n${logMessage}`);
@@ -251,6 +254,7 @@ bot.use(async (ctx, next) => {
             fs.appendFileSync(commandLogPath, JSON.stringify(logEntry) + '\n');
         } else {
             const logMessage = [
+                `=================================`,
                 `MESSAGE RECEIVED`,
                 `Time: ${timestamp}`,
                 `Type: ${messageType.type}`,
@@ -263,6 +267,8 @@ bot.use(async (ctx, next) => {
                 `Type: ${chatType}`,
                 `Info: ${chatInfo}`,
                 `Chat ID: ${chat.id}`
+                `=================================`,
+                ``
             ].join('\n');
 
             logger.info(`\n${logMessage}`);
