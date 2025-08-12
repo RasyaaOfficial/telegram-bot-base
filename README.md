@@ -633,9 +633,30 @@ jangan lupa untuk berikan star pada repo ini dan follow akun github saya terima 
 
 ## Kontributor
 
-<a href="https://github.com/FlowFalcon">
-  <img src="https://avatars.githubusercontent.com/FlowFalcon" width="50" style="border-radius:50%"/>
-</a>
-<a href="https://github.com/HamzLegendz">
-  <img src="https://avatars.githubusercontent.com/HamzLegendz" width="50" style="border-radius:50%"/>
-</a>
+<table>
+<!---->
+  <tr>
+    <td align="center" width="160" style="padding:12px;border:1px solid #e1e4e8;">
+      <a href="https://github.com/FlowFalcon">
+        <img src="https://avatars.githubusercontent.com/FlowFalcon?s=120" width="96" height="96" alt="p1">
+        <br><sub><b>FlowFalcon</b></sub>
+      </a>
+    </td>
+    <!---->
+    <td align="center" width="160" style="padding:12px;border:1px solid #e1e4e8;">
+      <a href="https://github.com/HamzLegendz">
+        <img src="https://avatars.githubusercontent.com/HamzLegendz?s=120" width="96" height="96" alt="p2">
+        <br><sub><b>HamzLegendz</b></sub>
+      </a>
+    </td>
+    <!---->
+    <td align="center" width="160" style="padding:12px;border:1px solid #e1e4e8;">
+      <a href="https://github.com/cloudkuimages">
+        <img src="https://avatars.githubusercontent.com/cloudkuimages?s=120" width="96" height="96" alt="p2">
+        <br><sub><b>cloudkuimages</b></sub>
+      </a>
+    </td>
+    <!---->
+<!---->
+</table>
+
