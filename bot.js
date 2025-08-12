@@ -191,9 +191,11 @@ bot.catch(async (err, ctx) => {
 });
 
 // Start bot
-bot.launch();
-logger.info("Bot started!");
-
+//https://github.com/telegraf/telegraf/issues/1749
+bot.launch({
+  dropPendingUpdates: true,
+  onLaunch: () => console.log("Bot is starting!")
+});
 // Enable graceful stop
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));
