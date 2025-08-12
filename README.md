@@ -622,8 +622,20 @@ cukup sekian dokumentasi singkat pada repo ini, saya harap kalian semua suka dan
 jangan lupa untuk berikan star pada repo ini dan follow akun github saya terima kasih
     
 
---
+---
 
 ### Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=FlowFalcon/telegram-bot-base&type=Date)](https://www.star-history.com/#FlowFalcon/telegram-bot-base&Date)
+
+
+---
+
+## Kontributor
+
+<a href="https://github.com/FlowFalcon">
+  <img src="https://avatars.githubusercontent.com/FlowFalcon" width="50" style="border-radius:50%"/>
+</a>
+<a href="https://github.com/HamzLegendz">
+  <img src="https://avatars.githubusercontent.com/HamzLegendz" width="50" style="border-radius:50%"/>
+</a>
