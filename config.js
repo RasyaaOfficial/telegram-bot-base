@@ -1,4 +1,4 @@
 module.exports = {
-    botToken: 'YOUR_BOT_TOKEN_HERE', // Replace with your actual bot token
-    ownerId:  null, // Set your owner ID here
+    botToken: '7266431869:AAE8IaTNhgqkOI6JQ6T4g5QeCbt7NFMT_po', // Replace with your actual bot token
+    ownerId:  '7121039571', // Set your owner ID here
 };
